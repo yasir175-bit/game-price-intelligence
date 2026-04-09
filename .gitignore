@@ -10,6 +10,7 @@ __pycache__/
 
 # Databases
 *.db
+!game_analytics.db
 *.sqlite3
 
 # Environment variables
