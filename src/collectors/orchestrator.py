@@ -11,37 +11,53 @@ logger = logging.getLogger(__name__)
 
 def update_game_data():
     """
-    Main pipeline: Fetch Top 100 games, clean data, and save to DB.
+    Main pipeline: Fetch Top 100 Deals, enrich with Steam API, clean data, and save to DB.
     """
     client = SteamAPIClient()
     db: Session = SessionLocal()
 
-    app_ids = client.get_top_100_games()
-    if not app_ids:
-        logger.error("Failed to fetch Top 100 app IDs. Aborting sync.")
+    deals = client.get_top_100_deals()
+    if not deals:
+        logger.error("Failed to fetch Top 100 Deals. Aborting sync.")
         return
 
-    logger.info(f"Processing {len(app_ids)} games...")
+    logger.info(f"Processing {len(deals)} games from active deals...")
 
-    # For testing or performance, we might just process a subset.
-    # We will process all 100 since the user wants 100.
-    for i, app_id in enumerate(app_ids):
-        logger.info(f"Fetching details for app_id: {app_id} ({i+1}/{len(app_ids)})")
+    for i, deal in enumerate(deals):
+        app_id = deal.get("steamAppID")
+        if not app_id:
+            continue
+            
+        logger.info(f"Fetching metadata for app_id: {app_id} ({i+1}/{len(deals)})")
         
-        # 1. Fetch current Store Details
-        raw_data = client.get_app_details(str(app_id))
-        if not raw_data:
+        # 1. Fetch current Store Details purely for genres and developers
+        raw_steam_data = client.get_app_details(str(app_id))
+        if not raw_steam_data:
             time.sleep(1) # Rate limit protection
             continue
 
-        # 2. Clean Data
-        cleaned_data = clean_game_data(raw_data)
-        if not cleaned_data or cleaned_data['final_price'] == -1:
+        # 2. Clean Data (we override pricing with CheapShark's guaranteed data)
+        # We still use cleaner for genres, publishers
+        cleaned_data = clean_game_data(raw_steam_data)
+        if not cleaned_data:
             time.sleep(1)
             continue
             
+        # Override pricing with the active deal data
+        cleaned_data["initial_price"] = float(deal.get("normalPrice", 0))
+        cleaned_data["final_price"] = float(deal.get("salePrice", 0))
+        # CheapShark provides percentage as a string float e.g. "90.003"
+        savings_str = deal.get("savings", "0")
+        try:
+            cleaned_data["discount_percent"] = int(float(savings_str))
+        except:
+            cleaned_data["discount_percent"] = 0
+            
+        # We don't want free games in our premium analytics
+        if cleaned_data["initial_price"] == 0 and cleaned_data["final_price"] == 0:
+            continue
+            
         # 3. Check if we need to fetch all-time low (CheapShark fallback)
-        # We only do this if we haven't seen the game or on first run to save rate limits
         game = db.query(Game).filter(Game.app_id == cleaned_data['app_id']).first()
         
         lowest_price = None
@@ -53,7 +69,7 @@ def update_game_data():
             
             game = Game(
                 app_id=cleaned_data['app_id'],
-                name=cleaned_data['name'],
+                name=deal.get("title", cleaned_data['name']), # CheapShark title is sometimes cleaner
                 developer=cleaned_data['developer'],
                 publisher=cleaned_data['publisher'],
                 genres=cleaned_data['genres'],
@@ -63,17 +79,13 @@ def update_game_data():
             db.commit()
             db.refresh(game)
         else:
-            # We already have history, we can figure out all time low from our own DB
-            # but for robustness let's just query CheapShark quickly if needed, or rely on our DB.
             pass
 
         # 4. Insert Price History
-        # We calculate lowest_price_ever
         previous_prices = db.query(PriceHistory).filter(PriceHistory.game_id == game.id).all()
         cached_low = min([p.final_price for p in previous_prices]) if previous_prices else float('inf')
         
         if lowest_price is None:
-            # If we didn't fetch from CheapShark, use our cached low or current price
             lowest_price = cached_low if cached_low != float('inf') else cleaned_data['final_price']
             
         is_historically_low = bool(cleaned_data['final_price'] <= lowest_price and cleaned_data['final_price'] > 0)
@@ -90,8 +102,6 @@ def update_game_data():
         db.add(price_entry)
         db.commit()
         
-        # Steam API is rate limited to ~200 requests / 5 mins.
-        # We add 1.5 second delay -> 40 requests/min -> well within limits.
         time.sleep(1.5)
 
     db.close()

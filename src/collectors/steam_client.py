@@ -10,18 +10,19 @@ class SteamAPIClient:
         self.store_api_url = "https://store.steampowered.com/api/appdetails"
         self.steamspy_api_url = "https://steamspy.com/api.php"
 
-    def get_top_100_games(self):
-        """Fetches the top 100 games played in the last 2 weeks using SteamSpy."""
-        logger.info("Fetching Top 100 games from SteamSpy...")
+    def get_top_100_deals(self):
+        """Fetches the top 100 current deals for Steam via CheapShark to guarantee non-zero prices."""
+        logger.info("Fetching Top 100 Deals from CheapShark...")
         try:
-            response = requests.get(f"{self.steamspy_api_url}?request=top100in2weeks", timeout=10)
+            # storeID=1 is Steam. sortBy=Deal Rating ensures high quality deals.
+            url = "https://www.cheapshark.com/api/1.0/deals?storeID=1&pageSize=100&sortBy=Deal%20Rating"
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
-            # Returns a dict where keys are app_ids and values are game details
-            app_ids = list(data.keys())
-            return app_ids
+            # Returns a list of deal objects
+            return data
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching top games: {e}")
+            logger.error(f"Error fetching top deals: {e}")
             return []
 
     def get_app_details(self, app_id: str):
