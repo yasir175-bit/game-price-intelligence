@@ -1,0 +1,11 @@
+pandas
+sqlalchemy
+pymysql
+requests
+streamlit
+prophet
+scikit-learn
+apscheduler
+python-dotenv
+plotly
+beautifulsoup4
