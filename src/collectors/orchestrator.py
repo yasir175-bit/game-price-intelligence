@@ -11,14 +11,16 @@ logger = logging.getLogger(__name__)
 
 def update_game_data():
     """
-    Main pipeline: Fetch Top 100 Deals, enrich with Steam API, clean data, and save to DB.
+    Main pipeline: Fetch Top 250 Deals, enrich with Steam API, clean data, and save to DB.
     """
     client = SteamAPIClient()
     db: Session = SessionLocal()
+    
+    usd_to_inr = 83.0
 
-    deals = client.get_top_100_deals()
+    deals = client.get_top_250_deals()
     if not deals:
-        logger.error("Failed to fetch Top 100 Deals. Aborting sync.")
+        logger.error("Failed to fetch Top 250 Deals. Aborting sync.")
         return
 
     logger.info(f"Processing {len(deals)} games from active deals...")
@@ -43,9 +45,10 @@ def update_game_data():
             time.sleep(1)
             continue
             
-        # Override pricing with the active deal data
-        cleaned_data["initial_price"] = float(deal.get("normalPrice", 0))
-        cleaned_data["final_price"] = float(deal.get("salePrice", 0))
+        # Override pricing with the active deal data, converting to INR
+        cleaned_data["initial_price"] = float(deal.get("normalPrice", 0)) * usd_to_inr
+        cleaned_data["final_price"] = float(deal.get("salePrice", 0)) * usd_to_inr
+        cleaned_data["currency"] = "INR"
         # CheapShark provides percentage as a string float e.g. "90.003"
         savings_str = deal.get("savings", "0")
         try:
@@ -65,7 +68,7 @@ def update_game_data():
             logger.info(f"New game found {cleaned_data['name']}. Fetching historical low...")
             cs_data = client.get_historical_price_cheapshark(cleaned_data['app_id'])
             if cs_data:
-                lowest_price = cs_data['price']
+                lowest_price = cs_data['price'] * usd_to_inr
             
             game = Game(
                 app_id=cleaned_data['app_id'],

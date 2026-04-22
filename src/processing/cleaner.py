@@ -25,7 +25,7 @@ def clean_game_data(raw_data: dict) -> dict:
         is_free = raw_data.get('is_free', False)
         price_overview = raw_data.get('price_overview', {})
         
-        currency = price_overview.get('currency', 'USD')
+        currency = price_overview.get('currency', 'INR')
         
         if is_free:
             initial_price = 0.0

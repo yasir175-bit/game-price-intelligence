@@ -23,7 +23,7 @@ class PriceHistory(Base):
     game_id = Column(Integer, ForeignKey("games.id"))
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     
-    currency = Column(String(10), default="USD")
+    currency = Column(String(10), default="INR")
     initial_price = Column(Float, nullable=False) # Price before discount
     final_price = Column(Float, nullable=False) # Current price
     discount_percent = Column(Integer, default=0)

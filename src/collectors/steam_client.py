@@ -10,12 +10,12 @@ class SteamAPIClient:
         self.store_api_url = "https://store.steampowered.com/api/appdetails"
         self.steamspy_api_url = "https://steamspy.com/api.php"
 
-    def get_top_100_deals(self):
-        """Fetches the top 100 current deals for Steam via CheapShark to guarantee non-zero prices."""
-        logger.info("Fetching Top 100 Deals from CheapShark...")
+    def get_top_250_deals(self):
+        """Fetches the top 250 current deals for Steam via CheapShark to guarantee non-zero prices."""
+        logger.info("Fetching Top 250 Deals from CheapShark...")
         try:
             # storeID=1 is Steam. sortBy=Deal Rating ensures high quality deals.
-            url = "https://www.cheapshark.com/api/1.0/deals?storeID=1&pageSize=100&sortBy=Deal%20Rating"
+            url = "https://www.cheapshark.com/api/1.0/deals?storeID=1&pageSize=250&sortBy=Deal%20Rating"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
